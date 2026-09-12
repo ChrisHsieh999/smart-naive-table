@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { darkTheme, NConfigProvider, NMessageProvider, NSpace, NSwitch, NTabPane, NTabs } from 'naive-ui'
+import { darkTheme, dateZhCN, NConfigProvider, NMessageProvider, NSpace, NSwitch, NTabPane, NTabs, zhCN } from 'naive-ui'
 import DemoBasic from './DemoBasic.vue'
 import DemoWide from './DemoWide.vue'
 import DemoCrud from './DemoCrud.vue'
@@ -13,10 +13,13 @@ const isZh = computed({
   get: () => locale.value === 'zh',
   set: (v: boolean) => (locale.value = v ? 'zh' : 'en'),
 })
+// Naive 自带文案(占位符、日期面板)同步切换;null 即 Naive 内置英文
+const naiveLocale = computed(() => (isZh.value ? zhCN : null))
+const naiveDateLocale = computed(() => (isZh.value ? dateZhCN : null))
 </script>
 
 <template>
-  <n-config-provider :theme="theme">
+  <n-config-provider :theme="theme" :locale="naiveLocale" :date-locale="naiveDateLocale">
     <n-message-provider>
       <div class="page" :class="{ dark }">
         <n-space align="center" justify="space-between" style="margin-bottom: 16px">
