@@ -3,10 +3,11 @@
 // props 用运行时声明 + PropType:泛型 + 复杂导入类型下比纯类型声明稳。
 import { computed, toValue, useAttrs, useSlots, watch, type PropType, type Slots } from 'vue'
 import { NCard, NDataTable } from 'naive-ui'
-import type { DataTableInst, PaginationProps } from 'naive-ui'
+import type { DataTableInst, PaginationInfo, PaginationProps } from 'naive-ui'
 import type {
   Density,
   ProTableColumn,
+  ProTableDataColumn,
   ProTableFetcher,
   ProTableLabels,
   SearchFormConfig,
@@ -57,6 +58,25 @@ const emit = defineEmits<{
   error: [err: unknown]
   rowClick: [row: T, index: number]
   rowDragSort: [e: { from: number; to: number; reordered: T[] }]
+}>()
+
+// 仅声明插槽类型(对外):cell-* / header-* 是按列 key 动态读取的,模板里没有对应 <slot>,
+// 不声明的话宿主写 #cell-name 会被 vue-tsc / Volar 报「插槽不存在」。
+// 返回值用 any(Vue 文档的 defineSlots 写法):写 VNodeChild 时,dts 生成所用的 language-core
+// 会把 useSlots() 推断成这里的类型,与下方的 Slots(要求返回 VNode[])不兼容而报 TS2322。
+defineSlots<{
+  title?: () => any
+  /** 工具栏左侧 */
+  toolbar?: () => any
+  /** 工具栏右侧,内置按钮之前 */
+  'toolbar-right'?: () => any
+  empty?: () => any
+  /** 分页栏左侧 */
+  'pagination-prefix'?: (info: PaginationInfo) => any
+  /** 自定义单元格:#cell-{列 key} */
+  [cell: `cell-${string}`]: ((props: { row: T; index: number }) => any) | undefined
+  /** 自定义表头:#header-{列 key} */
+  [header: `header-${string}`]: ((props: { column: ProTableDataColumn<T> }) => any) | undefined
 }>()
 
 // 显式标注:slots 进入 useColumns 又参与 expose 类型,dts 生成会因自引用推断报 TS7022

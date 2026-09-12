@@ -10,7 +10,14 @@ export default defineConfig({
   plugins: [
     vue(),
     libInjectCss(),
-    dts({ include: ['src'], tsconfigPath: './tsconfig.json' }),
+    dts({
+      include: ['src'],
+      tsconfigPath: './tsconfig.json',
+      // 插件默认只打印 d.ts 生成时的类型错误、构建照样成功;这里让它失败,CI 才拦得住
+      afterDiagnostic: (diagnostics) => {
+        if (diagnostics.length) throw new Error(`d.ts 生成有 ${diagnostics.length} 处类型错误,见上方输出`)
+      },
+    }),
   ],
   build: {
     lib: {
