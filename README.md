@@ -105,7 +105,7 @@ const fetcher: ProTableFetcher<User> = async ({ page, pageSize, ...query }) => {
 ### 搜索项
 
 ```ts
-{ key: 'name', title: '姓名', search: true }                          // 输入框
+{ key: 'name', title: '姓名', search: true }                           // 输入框
 { key: 'status', title: '状态', options: statusOptions, search: true } // 有 options 时自动用下拉框
 { key: 'age', title: '年龄', search: { type: 'number' } }              // 指定控件类型
 { key: 'keyword', title: '关键字', hideInTable: true, search: true }   // 只做搜索项，不显示成列
@@ -120,8 +120,8 @@ const fetcher: ProTableFetcher<User> = async ({ page, pageSize, ...query }) => {
 
 ```vue
 <ProTable :search="{ collapsible: true, collapsedRows: 1 }" /> <!-- 超过 1 行时折叠，带展开 / 收起 -->
-<ProTable :search="{ layout: 'inline' }" />                     <!-- 无卡片、单行排列，适合窄栏 -->
-<ProTable :search="false" />                                    <!-- 不显示搜索区 -->
+<ProTable :search="{ layout: 'inline' }" />                    <!-- 无卡片、单行排列，适合窄栏 -->
+<ProTable :search="false" />                                   <!-- 不显示搜索区 -->
 ```
 
 ### 字典、标签与格式化
@@ -135,11 +135,11 @@ const statusOptions: ProTableOption[] = [
   { label: '离职', value: 3, tagType: 'error' },
 ]
 
-{ key: 'status', title: '状态', options: statusOptions, tag: true }  // 显示为彩色标签
+{ key: 'status', title: '状态', options: statusOptions, tag: true }   // 显示为彩色标签
 { key: 'deptId', title: '部门', options: () => api.getDeptOptions() } // 异步字典：自动 loading、并发去重
-{ key: 'salary', title: '薪资', format: 'money' }                    // 6,000.00
-{ key: 'birthday', title: '生日', format: 'date' }                   // 2024-01-01
-{ key: 'score', title: '得分', format: (v) => `${v} 分` }            // 自定义格式
+{ key: 'salary', title: '薪资', format: 'money' }                     // 6,000.00
+{ key: 'birthday', title: '生日', format: 'date' }                    // 2024-01-01
+{ key: 'score', title: '得分', format: (v) => `${v} 分` }             // 自定义格式
 ```
 
 `options` 支持静态数组、`ref`、异步函数三种写法；异步字典可调用实例方法 `reloadOptions()` 重新拉取。

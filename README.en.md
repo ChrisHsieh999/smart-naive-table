@@ -105,7 +105,7 @@ When you click Search, `fetcher` receives (empty values already stripped):
 ### Search fields
 
 ```ts
-{ key: 'name', title: 'Name', search: true }                            // input
+{ key: 'name', title: 'Name', search: true }                             // input
 { key: 'status', title: 'Status', options: statusOptions, search: true } // has options → select
 { key: 'age', title: 'Age', search: { type: 'number' } }                 // pick the control type
 { key: 'keyword', title: 'Keyword', hideInTable: true, search: true }    // search-only, not a column
@@ -120,8 +120,8 @@ Search area layout:
 
 ```vue
 <ProTable :search="{ collapsible: true, collapsedRows: 1 }" /> <!-- collapse beyond 1 row, with expand / collapse -->
-<ProTable :search="{ layout: 'inline' }" />                     <!-- no card, single wrapping row for narrow panes -->
-<ProTable :search="false" />                                    <!-- no search area -->
+<ProTable :search="{ layout: 'inline' }" />                    <!-- no card, single wrapping row for narrow panes -->
+<ProTable :search="false" />                                   <!-- no search area -->
 ```
 
 ### Dicts, tags and formats
@@ -135,11 +135,11 @@ const statusOptions: ProTableOption[] = [
   { label: 'Resigned', value: 3, tagType: 'error' },
 ]
 
-{ key: 'status', title: 'Status', options: statusOptions, tag: true }      // colored tag
+{ key: 'status', title: 'Status', options: statusOptions, tag: true }       // colored tag
 { key: 'deptId', title: 'Department', options: () => api.getDeptOptions() } // async dict: loading + dedup built in
-{ key: 'salary', title: 'Salary', format: 'money' }                        // 6,000.00
-{ key: 'birthday', title: 'Birthday', format: 'date' }                     // 2024-01-01
-{ key: 'score', title: 'Score', format: (v) => `${v} pts` }                // custom
+{ key: 'salary', title: 'Salary', format: 'money' }                         // 6,000.00
+{ key: 'birthday', title: 'Birthday', format: 'date' }                      // 2024-01-01
+{ key: 'score', title: 'Score', format: (v) => `${v} pts` }                 // custom
 ```
 
 `options` accepts a static array, a `ref`, or an async function; reload async dicts with the instance method `reloadOptions()`.
