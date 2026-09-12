@@ -63,6 +63,9 @@ const columns: ProTableColumn<DemoRow>[] = [
     <template #toolbar>
       <n-button type="primary" size="small" @click="crud.openCreate()">{{ tt('新增', 'Create')() }}</n-button>
     </template>
+    <template #cell-email="{ row }">
+      <a :href="`mailto:${row.email}`">{{ row.email }}</a>
+    </template>
   </ProTable>
 
   <n-modal

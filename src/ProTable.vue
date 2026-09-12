@@ -1,12 +1,13 @@
 <script setup lang="ts" generic="T">
 // 唯一胶水层:useProTable(数据)+ useOptions(字典)+ useColumns(列/设置)组装。
 // props 用运行时声明 + PropType:泛型 + 复杂导入类型下比纯类型声明稳。
-import { computed, toValue, useAttrs, useSlots, watch, type PropType, type Slots } from 'vue'
+import { computed, toValue, useAttrs, useSlots, watch, type PropType, type Slots, type VNodeChild } from 'vue'
 import { NCard, NDataTable } from 'naive-ui'
-import type { DataTableInst, PaginationProps } from 'naive-ui'
+import type { DataTableInst, PaginationInfo, PaginationProps } from 'naive-ui'
 import type {
   Density,
   ProTableColumn,
+  ProTableDataColumn,
   ProTableFetcher,
   ProTableLabels,
   SearchFormConfig,
@@ -57,6 +58,23 @@ const emit = defineEmits<{
   error: [err: unknown]
   rowClick: [row: T, index: number]
   rowDragSort: [e: { from: number; to: number; reordered: T[] }]
+}>()
+
+// 仅声明插槽类型(对外):cell-* / header-* 是按列 key 动态读取的,模板里没有对应 <slot>,
+// 不声明的话宿主写 #cell-name 会被 vue-tsc / Volar 报「插槽不存在」。
+defineSlots<{
+  title?: () => VNodeChild
+  /** 工具栏左侧 */
+  toolbar?: () => VNodeChild
+  /** 工具栏右侧,内置按钮之前 */
+  'toolbar-right'?: () => VNodeChild
+  empty?: () => VNodeChild
+  /** 分页栏左侧 */
+  'pagination-prefix'?: (info: PaginationInfo) => VNodeChild
+  /** 自定义单元格:#cell-{列 key} */
+  [cell: `cell-${string}`]: ((props: { row: T; index: number }) => VNodeChild) | undefined
+  /** 自定义表头:#header-{列 key} */
+  [header: `header-${string}`]: ((props: { column: ProTableDataColumn<T> }) => VNodeChild) | undefined
 }>()
 
 // 显式标注:slots 进入 useColumns 又参与 expose 类型,dts 生成会因自引用推断报 TS7022
