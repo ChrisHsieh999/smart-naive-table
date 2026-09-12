@@ -1,17 +1,27 @@
-name: Publish to npm
+name: Release
 
-# 打 v* tag 即发布。首次发布必须先用令牌手动发一次(npm 要求包已存在才能配置 Trusted Publisher)。
+# dev 通过 PR 合并到 main 即触发:类型检查 + 测试 + 构建,然后按 package.json 的版本号发布。
+#   - 该版本在 npm 上不存在        → npm publish(Trusted Publishing,无需 token)
+#   - 对应的 v<版本号> Release 不存在 → 打 tag 并创建 GitHub Release,附 npm pack 产物
+#   - 版本号没变                   → 两步都跳过,只做构建校验
+# 发新版:在 dev 上 `npm version patch --no-git-tag-version`(或 minor / major)并更新 CHANGELOG,再 PR 到 main。
+# 首次发布必须先用令牌手动发一次(npm 要求包已存在才能配置 Trusted Publisher),
+# 在 npmjs.com 配置 Trusted Publisher 时 workflow 文件名填 publish.yml。
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
 permissions:
   id-token: write # OIDC 令牌 —— Trusted Publishing 的关键,缺了发不了
-  contents: read
+  contents: write # 打 tag、创建 Release
+
+# 连续合并时排队执行,避免两次发布并发
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -24,5 +34,44 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - run: npm ci
+      - run: npm run typecheck
       - run: npm test
-      - run: npm publish # access=public 已在 package.json 的 publishConfig;build 由 prepublishOnly 触发
+      - run: npm run build
+
+      - name: 检查版本是否已发布
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # 包或版本不存在时 npm view 报 E404、输出为空 → 需要发布;
+          # 网络等其它错误也会落到"需要发布",届时 npm publish 会失败并暴露问题,不会静默跳过。
+          if [ "$(npm view "$NAME@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+            echo "npm=skip" >> "$GITHUB_OUTPUT"
+            echo "::notice::$NAME@$VERSION 已在 npm 上,跳过 npm publish"
+          else
+            echo "npm=publish" >> "$GITHUB_OUTPUT"
+          fi
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "release=skip" >> "$GITHUB_OUTPUT"
+            echo "::notice::Release v$VERSION 已存在,跳过创建"
+          else
+            echo "release=create" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 发布到 npm
+        if: steps.check.outputs.npm == 'publish'
+        run: npm publish # access=public 已在 package.json 的 publishConfig;build 由 prepublishOnly 触发
+
+      - name: 创建 tag 与 GitHub Release
+        if: steps.check.outputs.release == 'create'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          npm pack
+          gh release create "v$VERSION" ./*.tgz --target "$GITHUB_SHA" --title "v$VERSION" --generate-notes

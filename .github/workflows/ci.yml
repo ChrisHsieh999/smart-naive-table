@@ -1,9 +1,12 @@
 name: CI
 
+# 日常开发在 dev:push 到 dev、以及向 main / dev 提的 PR 都跑一遍检查。
+# main 开启了分支保护,PR 必须等本 job(ci)通过才能合并;main 上的检查与发布见 publish.yml。
 on:
   push:
-    branches: [main]
+    branches: [dev]
   pull_request:
+    branches: [main, dev]
 
 jobs:
   ci:
