@@ -1,0 +1,298 @@
+import type { Ref, VNodeChild, MaybeRefOrGetter } from 'vue'
+import type { DataTableBaseColumn, DataTableInst, PaginationProps } from 'naive-ui'
+// naive-ui 只出现在类型位置;运行时 hooks(useProTable/useTableCrud/useOptions)不 import 它。
+
+/* ======================== 数据契约 ======================== */
+
+/** 分页结果。任何后端在 fetcher 内适配成这个形状。 */
+export interface PageResult<T> {
+  items: T[]
+  total: number
+}
+
+/**
+ * 每次请求的参数:page/pageSize + 清洗后的搜索参数 + 外部附加参数。
+ * 值类型用 any 而非 unknown —— strict 下 unknown 会让窄签名的 api 函数
+ * (如 `(p: {page:number; account?:string}) => ...`)因参数逆变无法直接赋给 fetcher。
+ */
+export type ProTableParams = { page: number; pageSize: number } & Record<string, any>
+
+/** 请求适配器 —— 包的唯一后端契约,入/出参不同就在这一层映射。 */
+export type ProTableFetcher<T> = (params: ProTableParams) => Promise<PageResult<T>>
+
+/* ======================== 字典 / 选项 ======================== */
+
+export type TagType = 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'
+
+export interface ProTableOption {
+  /** 函数形式在渲染期求值 —— 宿主 () => t('...') 切换语言即时生效。 */
+  label: string | (() => string)
+  value: string | number | boolean | null
+  /** 列开启 tag:true 时,该项渲染成对应 type 的 NTag。 */
+  tagType?: TagType
+  /** 仅影响搜索 select,不影响单元格翻译。 */
+  disabled?: boolean
+  /** 树形选项(透传搜索控件;单元格翻译按扁平化查找)。 */
+  children?: ProTableOption[]
+}
+
+/** 选项来源:静态数组 / 响应式 ref / 异步函数(内置 loading 与在途去重)。 */
+export type OptionsSource =
+  | ProTableOption[]
+  | Ref<ProTableOption[]>
+  | (() => Promise<ProTableOption[]>)
+
+/* ======================== 声明式格式化 ======================== */
+
+/**
+ * date → 'YYYY-MM-DD';datetime → 'YYYY-MM-DD HH:mm:ss'(接受 ISO 串/时间戳/Date);
+ * money → 千分位保留两位;函数形式完全自定义。render 优先于 format。
+ */
+export type CellFormat<T = any> = 'date' | 'datetime' | 'money' | ((value: unknown, row: T) => string)
+
+/* ======================== 搜索 ======================== */
+
+export type SearchFieldType = 'input' | 'number' | 'select' | 'date' | 'daterange' | 'switch'
+
+/** 自定义搜索控件的渲染上下文。 */
+export interface SearchRenderCtx {
+  value: unknown
+  setValue: (v: unknown) => void
+  /** 整个搜索参数对象(reactive),字段联动用。 */
+  params: Record<string, any>
+  /** 触发查询(自定义控件回车等场景)。 */
+  search: () => void
+}
+
+export interface SearchConfig {
+  /** 控件类型;缺省:列有 options → 'select',否则 'input'。 */
+  type?: SearchFieldType
+  /** 参数名,默认列 key(搜索键与展示字段不同时覆盖)。 */
+  key?: string
+  /** 表单 label;缺省取列 title(函数同样透传,保证语言切换生效)。 */
+  label?: string | (() => string)
+  /** 缺省交给 Naive locale 的默认占位。 */
+  placeholder?: string
+  /** 初始值 = reset 恢复目标;缺省视为 null。 */
+  defaultValue?: unknown
+  /** 排序,小的在前;缺省按列声明顺序。 */
+  order?: number
+  /** 占据 n-grid 的列数,默认 1。 */
+  span?: number
+  /** 透传对应 Naive 控件(NInput/NInputNumber/NSelect/NDatePicker/NSwitch)。 */
+  props?: Record<string, unknown>
+  /** 自定义控件,优先于 type。 */
+  render?: (ctx: SearchRenderCtx) => VNodeChild
+}
+
+/* ======================== 列 ======================== */
+
+/**
+ * 数据列。除 pro 字段外,其余 Naive 列属性(width/minWidth/fixed/align/
+ * ellipsis/sorter...)原样透传给 n-data-table。
+ */
+export interface ProTableDataColumn<T = any>
+  extends Partial<Omit<DataTableBaseColumn<T>, 'key' | 'title' | 'render' | 'children'>> {
+  /** 数据字段名;同时是搜索参数默认键、列设置持久化 id、动态插槽名。 */
+  key: string
+  /** 函数形式在表格渲染期求值 —— 切换语言自动生效。 */
+  title?: string | (() => VNodeChild)
+  /** 自定义单元格,优先级最高。 */
+  render?: (row: T, rowIndex: number) => VNodeChild
+  /** 声明式格式化(render/插槽未命中时生效)。 */
+  format?: CellFormat<T>
+  /** 字典:单元格翻译 + 搜索 select 选项,一处声明两处用。 */
+  options?: OptionsSource
+  /** 值经 options 翻译后渲染为 NTag(取命中项 tagType,默认 'default')。 */
+  tag?: boolean
+  /** 初始隐藏,列设置里可勾回。 */
+  hide?: boolean
+  /** 只作搜索项,不进表格也不进列设置。 */
+  hideInTable?: boolean
+  /** 在表格显示,但不出现在列设置面板(典型:操作列)。 */
+  hideInSetting?: boolean
+  /** 搜索项配置;true = 全默认(input / 有 options 则 select)。 */
+  search?: boolean | SearchConfig
+  /** 多级表头(Naive 原生名,子列同样支持 pro 字段)。 */
+  children?: ProTableDataColumn<T>[]
+}
+
+/** 特殊列:勾选 / 展开 / 序号。显式 type,不进搜索/列设置/持久化。 */
+export interface ProTableSpecialColumn<T = any> {
+  type: 'selection' | 'expand' | 'index'
+  width?: number
+  fixed?: 'left' | 'right'
+  /** index 列表头,默认 '#'。 */
+  title?: string | (() => VNodeChild)
+  /** type='expand' 的展开内容。 */
+  renderExpand?: (row: T, rowIndex: number) => VNodeChild
+  /** 其余 Naive 同名属性透传(如 selection 的 multiple)。 */
+  [key: string]: unknown
+}
+
+/** 判别方式:有 type 字段即特殊列。 */
+export type ProTableColumn<T = any> = ProTableDataColumn<T> | ProTableSpecialColumn<T>
+
+/* ======================== 组件 Props ======================== */
+
+export type Density = 'comfortable' | 'compact'
+
+export interface SearchFormConfig {
+  /** 布局:'grid'(默认,独立卡片 + n-grid)| 'inline'(无卡片,单行自动换行,适配窄栏)。 */
+  layout?: 'grid' | 'inline'
+  /** n-grid 的 cols(responsive="screen"),默认取全局 searchCols('1 s:2 m:3 l:4');inline 模式忽略。 */
+  cols?: number | string
+  labelPlacement?: 'left' | 'top'
+  labelWidth?: number | string
+  /** 搜索项多时折叠(默认展开首行 + "展开/收起");仅 grid 布局。默认 false。 */
+  collapsible?: boolean
+  /** 折叠时保留的行数,默认 1。 */
+  collapsedRows?: number
+}
+
+export interface ToolbarConfig {
+  refresh?: boolean // 默认 true
+  density?: boolean // 默认 true
+  columnSettings?: boolean // 默认 true
+}
+
+export interface ProTableProps<T = any> {
+  columns: ProTableColumn<T>[]
+  /** 远程模式;与 data 二选一,同给时 fetcher 优先。 */
+  fetcher?: ProTableFetcher<T>
+  /** 静态模式:客户端分页,不发请求。 */
+  data?: T[]
+  /** 字段名或函数,默认 'id'。 */
+  rowKey?: string | ((row: T) => string | number)
+  /** 外部附加参数(树筛选联动):深监听 → 回第 1 页重查;合并优先级最高。 */
+  params?: Record<string, any>
+  /** 挂载即请求,默认 true。 */
+  immediate?: boolean
+  defaultPageSize?: number // 默认 10
+  /** false 隐藏分页;对象与内置默认合并后透传 n-data-table 分页。 */
+  pagination?: false | Partial<PaginationProps>
+  /** false 隐藏搜索表单(即使列声明了 search)。 */
+  search?: false | SearchFormConfig
+  /** false 隐藏右侧工具按钮。 */
+  toolbar?: false | ToolbarConfig
+  /** 表格卡片标题(也可用 #title 插槽)。 */
+  title?: string
+  /** 列设置 + 密度的 localStorage 持久化键;缺省不持久化。 */
+  storageKey?: string
+  defaultDensity?: Density // 默认 'comfortable'
+  /** 部分覆盖英文默认文案;传 computed 对象即随 locale 响应。 */
+  labels?: Partial<ProTableLabels>
+  /** 命中行加 .pro-table-row--active 高亮(用 rowKey 比对);配合 @row-click 做主从选中。 */
+  activeRowKey?: string | number | null
+}
+
+/* ======================== 实例(模板 ref) ======================== */
+
+export interface ProTableInst<T = any> {
+  /** 保持当前页与参数重查。 */
+  refresh: () => Promise<void>
+  /** 回第 1 页查询。 */
+  search: () => Promise<void>
+  /** 重置搜索项(defaultValue ?? null)并查询。 */
+  reset: () => Promise<void>
+  loading: Ref<boolean>
+  rows: Ref<T[]>
+  /** 响应式搜索参数(可编程读写)。 */
+  params: Record<string, any>
+  pagination: { page: number; pageSize: number; itemCount: number }
+  /** 重新加载异步字典;缺省全部,传列 key 只刷一个。 */
+  reloadOptions: (key?: string) => Promise<void>
+  /** Naive 原生实例(scrollTo / sort 等)。 */
+  tableRef: Ref<DataTableInst | null>
+}
+
+/* ======================== useProTable ======================== */
+
+export interface UseProTableOptions {
+  /** 搜索参数初值,也是 reset 的恢复目标。 */
+  initParams?: Record<string, any>
+  /** 每次请求追加的外部参数(getter/ref,请求时求值)。 */
+  extraParams?: MaybeRefOrGetter<Record<string, any>>
+  immediate?: boolean // 默认 true
+  defaultPageSize?: number // 默认 10
+  onError?: (e: unknown) => void
+}
+
+export interface UseProTableReturn<T> {
+  loading: Ref<boolean>
+  rows: Ref<T[]>
+  /** reactive 搜索参数。 */
+  params: Record<string, any>
+  /** reactive 分页(字段名对齐 Naive:itemCount)。 */
+  pagination: { page: number; pageSize: number; itemCount: number }
+  /** 按当前 page/params 请求。 */
+  load: () => Promise<void>
+  /** load 的语义化别名。 */
+  refresh: () => Promise<void>
+  /** page=1 + load。 */
+  search: () => Promise<void>
+  /** params 恢复 initParams,其余键置 null(绝不 delete),page=1 + load。 */
+  reset: () => Promise<void>
+  onPage: (p: number) => Promise<void>
+  onPageSize: (s: number) => Promise<void>
+}
+
+/* ======================== useTableCrud ======================== */
+
+export interface UseTableCrudOptions<Row, Form> {
+  /** 新建时的空表单工厂。 */
+  form: () => Form
+  /** 编辑时行 → 表单;缺省浅拷贝行上与空表单同名的字段。 */
+  toForm?: (row: Row) => Form
+  create: (form: Form) => Promise<unknown>
+  update: (form: Form, row: Row) => Promise<unknown>
+  remove?: (row: Row) => Promise<unknown>
+  /** 增删改成功后回调,通常 () => tableRef.value?.refresh()。 */
+  onSuccess?: () => void
+  onError?: (e: unknown) => void
+}
+
+export interface UseTableCrudReturn<Row, Form> {
+  visible: Ref<boolean>
+  mode: Ref<'create' | 'edit'>
+  /** 表单模型,直接给 n-form。 */
+  model: Ref<Form>
+  editingRow: Ref<Row | null>
+  submitting: Ref<boolean>
+  openCreate: () => void
+  openEdit: (row: Row) => void
+  /** 成功返回 true 并自动关窗 + onSuccess;失败返回 false(已回调 onError,窗口保持)。 */
+  submit: () => Promise<boolean>
+  removeRow: (row: Row) => Promise<boolean>
+  close: () => void
+}
+
+/* ======================== 文案 ======================== */
+
+/** 组件自身 chrome 文案;列标题/选项 label 走函数形式,不在此列。 */
+export interface ProTableLabels {
+  search: string
+  reset: string
+  refresh: string
+  density: string
+  densityComfortable: string
+  densityCompact: string
+  columnSettings: string
+  columnSettingsReset: string
+  fixedLeft: string
+  fixedRight: string
+  fixedNone: string
+  /** 搜索折叠:展开 / 收起。 */
+  expand: string
+  collapse: string
+}
+
+/* ======================== 持久化存储结构 ======================== */
+
+export interface StoredTableState {
+  /** 结构版本;不匹配则整体丢弃回退声明态。 */
+  v: 1
+  density: Density
+  /** 数组顺序即列顺序。 */
+  cols: { key: string; show: boolean; fixed?: 'left' | 'right' }[]
+}

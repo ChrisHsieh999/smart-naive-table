@@ -1,0 +1,144 @@
+<script setup lang="ts">
+// 列设置面板:显隐勾选 + 原生 HTML5 拖拽排序 + 固定切换 + 恢复默认。零拖拽库依赖。
+import { ref, type PropType, type VNodeChild } from 'vue'
+import { NButton, NCheckbox, NPopover, NTooltip, useThemeVars } from 'naive-ui'
+import type { ProTableLabels } from './types'
+import type { SettingItem } from './useColumns'
+import { ColumnsIcon, DragIcon } from './icons'
+
+defineProps({
+  items: { type: Array as PropType<SettingItem[]>, required: true },
+  labels: { type: Object as PropType<ProTableLabels>, required: true },
+})
+
+const emit = defineEmits<{
+  toggle: [key: string, show: boolean]
+  move: [from: number, to: number]
+  setFixed: [key: string, fixed: 'left' | 'right' | undefined]
+  reset: []
+}>()
+
+const themeVars = useThemeVars()
+const dragFrom = ref<number | null>(null)
+const dragOver = ref<number | null>(null)
+
+function onDragStart(idx: number, e: DragEvent) {
+  dragFrom.value = idx
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+
+function onDrop(idx: number) {
+  if (dragFrom.value !== null && dragFrom.value !== idx) emit('move', dragFrom.value, idx)
+  dragFrom.value = null
+  dragOver.value = null
+}
+
+function renderTitle(title: SettingItem['title']): VNodeChild {
+  return typeof title === 'function' ? title() : title
+}
+
+function toggleFixed(item: SettingItem, side: 'left' | 'right') {
+  emit('setFixed', item.key, item.fixed === side ? undefined : side)
+}
+</script>
+
+<template>
+  <n-popover trigger="click" placement="bottom-end" :show-arrow="false">
+    <template #trigger>
+      <n-tooltip trigger="hover">
+        <template #trigger>
+          <n-button quaternary circle size="small" :aria-label="labels.columnSettings">
+            <template #icon><ColumnsIcon /></template>
+          </n-button>
+        </template>
+        {{ labels.columnSettings }}
+      </n-tooltip>
+    </template>
+
+    <div class="pro-table-colset">
+      <div
+        v-for="(item, idx) in items"
+        :key="item.key"
+        class="pro-table-colset-row"
+        :class="{ 'is-over': dragOver === idx }"
+        :style="dragOver === idx ? { background: themeVars.hoverColor } : undefined"
+        draggable="true"
+        @dragstart="onDragStart(idx, $event)"
+        @dragover.prevent="dragOver = idx"
+        @dragleave="dragOver === idx && (dragOver = null)"
+        @drop.prevent="onDrop(idx)"
+        @dragend="((dragFrom = null), (dragOver = null))"
+      >
+        <span class="pro-table-colset-drag" :style="{ color: themeVars.textColor3 }"><DragIcon /></span>
+        <n-checkbox :checked="item.show" @update:checked="(v: boolean) => emit('toggle', item.key, v)">
+          <component :is="() => renderTitle(item.title)" />
+        </n-checkbox>
+        <span class="pro-table-colset-pins">
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button
+                quaternary
+                circle
+                size="tiny"
+                :type="item.fixed === 'left' ? 'primary' : 'default'"
+                :aria-label="item.fixed === 'left' ? labels.fixedNone : labels.fixedLeft"
+                @click="toggleFixed(item, 'left')"
+              >⇤</n-button>
+            </template>
+            {{ item.fixed === 'left' ? labels.fixedNone : labels.fixedLeft }}
+          </n-tooltip>
+          <n-tooltip trigger="hover">
+            <template #trigger>
+              <n-button
+                quaternary
+                circle
+                size="tiny"
+                :type="item.fixed === 'right' ? 'primary' : 'default'"
+                :aria-label="item.fixed === 'right' ? labels.fixedNone : labels.fixedRight"
+                @click="toggleFixed(item, 'right')"
+              >⇥</n-button>
+            </template>
+            {{ item.fixed === 'right' ? labels.fixedNone : labels.fixedRight }}
+          </n-tooltip>
+        </span>
+      </div>
+      <div class="pro-table-colset-footer" :style="{ borderTop: `1px solid ${themeVars.dividerColor}` }">
+        <n-button quaternary size="tiny" @click="emit('reset')">{{ labels.columnSettingsReset }}</n-button>
+      </div>
+    </div>
+  </n-popover>
+</template>
+
+<style scoped>
+.pro-table-colset {
+  min-width: 200px;
+  max-height: 320px;
+  overflow: auto;
+}
+.pro-table-colset-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.pro-table-colset-drag {
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+}
+.pro-table-colset-row :deep(.n-checkbox) {
+  flex: 1;
+  min-width: 0;
+}
+.pro-table-colset-pins {
+  display: inline-flex;
+  gap: 2px;
+}
+.pro-table-colset-footer {
+  margin-top: 6px;
+  padding-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+</style>

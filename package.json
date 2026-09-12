@@ -1,0 +1,71 @@
+{
+  "name": "smart-naive-table",
+  "version": "1.0.0",
+  "description": "Columns-driven pro table for Vue 3 + Naive UI: auto search form, remote pagination adapter, dict cell rendering, persistent column settings, density toggle, i18n via labels.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "HuGuoDong",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SmartCode-X/smart-naive-table.git"
+  },
+  "homepage": "https://github.com/SmartCode-X/smart-naive-table#readme",
+  "bugs": {
+    "url": "https://github.com/SmartCode-X/smart-naive-table/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "naive-ui",
+    "table",
+    "data-table",
+    "pro-table",
+    "admin",
+    "crud"
+  ],
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "naive-ui": "^2.34.0",
+    "vue": "^3.3.0"
+  },
+  "dependencies": {
+    "sortablejs": "^1.15.0"
+  },
+  "devDependencies": {
+    "@types/sortablejs": "^1.15.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "naive-ui": "^2.41.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.11",
+    "vite-plugin-dts": "^4.5.0",
+    "vite-plugin-lib-inject-css": "^2.2.1",
+    "vitest": "^3.0.5",
+    "vue": "^3.5.13",
+    "vue-tsc": "^2.2.0"
+  }
+}
