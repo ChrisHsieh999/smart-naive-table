@@ -257,11 +257,27 @@ function onColumnResize(resizedWidth: number, limitedWidth: number, column: unkn
     dragDelta.value = limitedWidth - (columnsApi.widths.value[colKey] ?? limitedWidth)
     emit('columnResize', colKey, limitedWidth)
   }
-  const hostHandler = attrs.onUnstableColumnResize
+  const hostHandler = attrs.onUnstableColumnResize ?? attrs['on-unstable-column-resize']
   if (typeof hostHandler === 'function') {
     ;(hostHandler as (...a: unknown[]) => void)(resizedWidth, limitedWidth, column, getColumnWidth)
   }
 }
+
+/**
+ * 透传给 n-data-table 的 attrs,剔除 on(-)unstable-column-resize。
+ *
+ * 模板里 `v-bind="attrs"` 之后又显式绑定了 `:on-unstable-column-resize="onColumnResize"`——
+ * 这个 key 命中 Vue 的 isOn() 判定,同名时 mergeProps 会把两个函数合并成数组而不是后者覆盖前者
+ * (class/style/on* 是 mergeProps 里唯一「合并」而非「覆盖」的特例)。宿主若也写了同名 attr,
+ * 数组传给 Naive 就会在它当函数调用时直接抛 TypeError。宿主处理函数已经在 onColumnResize 里
+ * 从 attrs 读出来手动转发了,这里只需要把它从透传对象里摘掉,避免它再从 v-bind 混进去参与合并。
+ */
+const forwardedAttrs = computed(() => {
+  const rest = { ...attrs } as Record<string, unknown>
+  delete rest.onUnstableColumnResize
+  delete rest['on-unstable-column-resize']
+  return rest
+})
 
 /* ---- 组装 ---- */
 
@@ -491,7 +507,7 @@ defineExpose({
         :size="tableSize"
         :scroll-x="autoScrollX"
         :single-line="false"
-        v-bind="attrs"
+        v-bind="forwardedAttrs"
         :row-props="mergedRowProps"
         :table-layout="mergedTableLayout"
         :on-unstable-column-resize="onColumnResize"

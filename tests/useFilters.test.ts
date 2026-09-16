@@ -71,6 +71,35 @@ describe('deriveFilterDefs', () => {
     )
     expect(deriveInitFilters(defs)).toEqual({ status: v(1) })
   })
+
+  it('deriveInitFilters 跳过条件全空的「不生效」defaultValue,与 useFilters 的补种口径一致', () => {
+    const inert: FilterValue = { logic: 'and', conditions: [{ action: 'gt', value: null }] }
+    const defs = deriveFilterDefs<Row>([{ key: 'salary', filter: { defaultValue: inert } }])
+    expect(deriveInitFilters(defs)).toEqual({})
+  })
+
+  it('多级表头(children)里的列同样能声明 filter,与 resizable 的递归口径一致', () => {
+    const defs = deriveFilterDefs<Row>([
+      {
+        key: 'contact',
+        title: 'Contact',
+        children: [
+          { key: 'email', title: 'Email', filter: true },
+          { key: 'phone', title: 'Phone', resizable: true },
+        ],
+      } as SmartTableColumn<Row>,
+    ])
+    expect(defs.map((d) => d.key)).toEqual(['email'])
+  })
+
+  it('未显式声明 actions 时,各列拿到彼此独立的默认动作数组(共享同一个模块级数组会被外部 mutate 污染)', () => {
+    const [a, b] = deriveFilterDefs<Row>([
+      { key: 'name', filter: true },
+      { key: 'status', filter: true },
+    ])
+    a.actions.push('gt' as never)
+    expect(b.actions).not.toContain('gt')
+  })
 })
 
 describe('useFilters', () => {

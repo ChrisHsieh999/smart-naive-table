@@ -287,6 +287,16 @@ describe('useColumns 列宽拖拽', () => {
     expect('width' in col(api, 'name')).toBe(false)
   })
 
+  it('可拖拽的勾选/展开特殊列在生成的 Naive 列上带显式 key,供拖拽回调按 key 定位列', () => {
+    const api = build([
+      { type: 'selection', resizable: true },
+      { type: 'expand', resizable: true },
+      { key: 'name', title: 'N' },
+    ])
+    expect(col(api, '__n_selection__')).toBeTruthy()
+    expect(col(api, '__n_expand__')).toBeTruthy()
+  })
+
   it('无 storageKey 时不写 localStorage(仅内存态)', () => {
     const setItem = vi.fn()
     vi.stubGlobal('localStorage', { getItem: () => null, setItem, removeItem: () => {} })

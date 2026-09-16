@@ -63,6 +63,14 @@ describe('storage', () => {
     expect(loadState('w')?.widths).toEqual({})
   })
 
+  it('drops a widths map whose values are not numbers(损坏/手改的存储不该流入列宽运算)', () => {
+    localStorage.setItem(
+      'protable:badWidths',
+      JSON.stringify({ v: 2, density: 'compact', cols: [], widths: { name: '180px' } }),
+    )
+    expect(loadState('badWidths')?.widths).toEqual({})
+  })
+
   it('clearState removes the entry', () => {
     saveState('t', 'comfortable', [])
     clearState('t')

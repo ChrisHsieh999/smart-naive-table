@@ -34,7 +34,9 @@ export function loadState(storageKey: string): StoredTableState | null {
 }
 
 function isWidthMap(v: unknown): v is Record<string, number> {
-  return !!v && typeof v === 'object' && !Array.isArray(v)
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false
+  // 值必须都是有限数字 —— 手改/半写坏的存储混进字符串会污染 leafWidth 的加法(字符串拼接成 "0180px")
+  return Object.values(v).every((n) => typeof n === 'number' && Number.isFinite(n))
 }
 
 export function saveState(

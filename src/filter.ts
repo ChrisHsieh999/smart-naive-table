@@ -61,7 +61,9 @@ function compareValues(a: unknown, b: unknown): number | null {
  */
 function dayRange(cell: unknown, value: unknown): { cellTs: number; start: number; end: number } | null {
   if (typeof value !== 'string' || !DATE_ONLY.test(value.trim())) return null
-  const start = Date.parse(`${value.trim()}T00:00:00`)
+  // 显式 UTC 锚定(带 Z):不加 Z 时 Date.parse 按运行环境本地时区解析,
+  // 会让「整天」边界随浏览器/服务端时区漂移,与单元格的绝对时间戳产生时区依赖的偏差。
+  const start = Date.parse(`${value.trim()}T00:00:00Z`)
   if (Number.isNaN(start)) return null
   const cellTs = cell instanceof Date ? cell.getTime() : typeof cell === 'string' ? Date.parse(cell) : NaN
   if (Number.isNaN(cellTs)) return null
@@ -77,7 +79,10 @@ function matchEqual(cell: unknown, value: unknown): boolean {
 
 function matchContains(cell: unknown, value: unknown): boolean {
   if (cell === null || cell === undefined) return false
-  return String(cell).toLowerCase().includes(String(value).toLowerCase())
+  const needle = String(value).toLowerCase()
+  // 数组单元格逐元素匹配 —— 整体 join 成字符串比较会在元素边界上产生假阳性(如 [1,22,3] 误中 '1,2')
+  if (Array.isArray(cell)) return cell.some((v) => String(v).toLowerCase().includes(needle))
+  return String(cell).toLowerCase().includes(needle)
 }
 
 /** 单条件求值。单元格为空时:notEqual/notContains 为真,其余为假。 */
@@ -112,7 +117,9 @@ export function matchCondition(cond: FilterCondition, cell: unknown): boolean {
       return c <= 0
     }
     default:
-      return true
+      // 未识别的 action(如反序列化/编程式构造出的脏数据)按不匹配处理 ——
+      // fail-open(默认放行)会让 or 逻辑下整列过滤被一条脏条件悄悄短路成「放行全部」。
+      return false
   }
 }
 

@@ -19,6 +19,7 @@ import type {
   SearchRenderCtx,
 } from './types'
 import { applyFormat } from './format'
+import { isFilterActive } from './filter'
 import { findOption, optionLabel } from './useOptions'
 import { clearState, loadState, mergeCols, saveState, type DeclaredCol } from './storage'
 import type { ResolvedSmartTableDefaults } from './config'
@@ -138,35 +139,47 @@ export interface FilterDef<T = any> {
  */
 export function deriveFilterDefs<T>(columns: SmartTableColumn<T>[]): FilterDef<T>[] {
   const defs: FilterDef<T>[] = []
-  for (const col of columns) {
-    if (isSpecialColumn(col) || !col.filter || col.hideInTable) continue
-    const cfg: FilterConfig<T> = col.filter === true ? {} : col.filter
-    const hasOptions = !!(cfg.options ?? col.options)
-    const mode: FilterMode = cfg.mode ?? (hasOptions ? 'options' : 'condition')
-    const type: FilterFieldType =
-      cfg.type ??
-      (hasOptions
-        ? 'select'
-        : col.format === 'date' || col.format === 'datetime'
-          ? 'date'
-          : col.format === 'money'
-            ? 'number'
-            : 'input')
-    defs.push({
-      key: cfg.key ?? col.key,
-      field: col.key,
-      optionsKey: cfg.options ? filterOptionsKey(col.key) : col.key,
-      title: col.title,
-      mode,
-      multiple: cfg.multiple ?? true,
-      type,
-      actions: cfg.actions?.length ? cfg.actions : DEFAULT_ACTIONS[type],
-      defaultValue: cfg.defaultValue ?? null,
-      props: cfg.props,
-      render: cfg.render,
-      filter: cfg.filter,
-    })
+  // 多级表头:filter 只可能声明在叶子列上,分组表头(有 children)只递归、自身不产出 def,
+  // 与 toNaive/freezeWidths 对 children 的递归口径保持一致。
+  const walk = (cols: SmartTableColumn<T>[]) => {
+    for (const col of cols) {
+      if (isSpecialColumn(col)) continue
+      if (col.children?.length) {
+        walk(col.children)
+        continue
+      }
+      if (!col.filter || col.hideInTable) continue
+      const cfg: FilterConfig<T> = col.filter === true ? {} : col.filter
+      const hasOptions = !!(cfg.options ?? col.options)
+      const mode: FilterMode = cfg.mode ?? (hasOptions ? 'options' : 'condition')
+      const type: FilterFieldType =
+        cfg.type ??
+        (hasOptions
+          ? 'select'
+          : col.format === 'date' || col.format === 'datetime'
+            ? 'date'
+            : col.format === 'money'
+              ? 'number'
+              : 'input')
+      defs.push({
+        key: cfg.key ?? col.key,
+        field: col.key,
+        optionsKey: cfg.options ? filterOptionsKey(col.key) : col.key,
+        title: col.title,
+        mode,
+        multiple: cfg.multiple ?? true,
+        type,
+        // 拷贝一份:DEFAULT_ACTIONS[type] 是模块级共享数组,deriveFilterDefs/FilterDef
+        // 是导出的公开 API,调用方 mutate 返回的 actions 不该污染其它列/其它实例。
+        actions: cfg.actions?.length ? cfg.actions : [...DEFAULT_ACTIONS[type]],
+        defaultValue: cfg.defaultValue ?? null,
+        props: cfg.props,
+        render: cfg.render,
+        filter: cfg.filter,
+      })
+    }
   }
+  walk(columns)
   return defs
 }
 
@@ -174,7 +187,9 @@ export function deriveFilterDefs<T>(columns: SmartTableColumn<T>[]): FilterDef<T
 export function deriveInitFilters<T>(defs: FilterDef<T>[]): Record<string, FilterValue> {
   const out: Record<string, FilterValue> = {}
   for (const d of defs) {
-    if (d.defaultValue) out[d.key] = d.defaultValue
+    // 与 useFilters 里「列定义后追加时」的补种口径一致:条件全空的 defaultValue 视为不生效,
+    // 否则同一份配置会因「初始挂载」还是「后续追加」而给出不同的初始过滤态。
+    if (d.defaultValue && isFilterActive(d.defaultValue)) out[d.key] = d.defaultValue
   }
   return out
 }
@@ -475,10 +490,17 @@ export function useColumns<T>(opts: UseColumnsOpts<T>): UseColumnsReturn<T> {
     }
     // 勾选/展开列缺省由 Naive 自己定宽,只有钉住态才写死,免得平时改了它的默认观感
     const pinnedWidth = pinned.value ? { width } : {}
+    // 显式给 key:Naive 内部的列宽拖拽回调(handleColumnResizeStart/handleColumnResize)
+    // 直接读 column.key,不会像 getColKey 那样替它们兜底成 __n_selection__/__n_expand__ ——
+    // 少这个 key,可拖拽的勾选/展开列一拖，onColumnResize 就因 key 是 undefined 而整段跳过。
+    const key = specialColumnKey(col)
+    // Naive 的 TableExpandColumn/TableSelectionColumn 类型声明里没有 key 字段(它按内部约定
+    // 自己认 __n_expand__/__n_selection__),但运行时的拖拽回调确实直接读 column.key ——
+    // 类型声明与运行时用法在这一点上不一致,只能整体转 unknown 再转回目标类型。
     if (type === 'expand') {
-      return { ...rest, type: 'expand', ...pinnedWidth, renderExpand } as DataTableColumn<T>
+      return { ...rest, key, type: 'expand', ...pinnedWidth, renderExpand } as unknown as DataTableColumn<T>
     }
-    return { ...rest, type: 'selection', ...pinnedWidth } as DataTableColumn<T>
+    return { ...rest, key, type: 'selection', ...pinnedWidth } as unknown as DataTableColumn<T>
   }
 
   /** 最终列:特殊列(声明序,恒在前)+ 数据列(managed 按设置排序,hideInSetting 保持声明位)。 */

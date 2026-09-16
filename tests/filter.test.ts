@@ -62,6 +62,31 @@ describe('matchCondition', () => {
     expect(matchCondition(cond('lte', '2024-03-05'), cell)).toBe(true)
     expect(matchCondition(cond('gt', '2024-03-04'), cell)).toBe(true)
   })
+
+  it('纯日期过滤在西半球时区(UTC-11)运行时结果不变 —— 整天边界按 UTC 锚定,不随本地时区漂移', () => {
+    const originalTZ = process.env.TZ
+    try {
+      process.env.TZ = 'Etc/GMT+11'
+      const cell = '2024-03-05T08:30:00.000Z'
+      expect(matchCondition(cond('equal', '2024-03-05'), cell)).toBe(true)
+      expect(matchCondition(cond('equal', '2024-03-06'), cell)).toBe(false)
+      expect(matchCondition(cond('gte', '2024-03-05'), cell)).toBe(true)
+      expect(matchCondition(cond('lt', '2024-03-05'), cell)).toBe(false)
+    } finally {
+      process.env.TZ = originalTZ
+    }
+  })
+
+  it('未识别的 action 视为不匹配,而不是放行全部行', () => {
+    expect(matchCondition({ action: 'bogus' as FilterAction, value: 1 }, 1)).toBe(false)
+    expect(matchCondition({ action: 'bogus' as FilterAction, value: 1 }, 999)).toBe(false)
+  })
+
+  it('数组单元格的 contains 按元素匹配,不把整个数组拼接成字符串比较', () => {
+    expect(matchCondition(cond('contains', '1,2'), [1, 22, 3])).toBe(false)
+    expect(matchCondition(cond('contains', '22'), [1, 22, 3])).toBe(true)
+    expect(matchCondition(cond('notContains', '1,2'), [1, 22, 3])).toBe(true)
+  })
 })
 
 describe('matchFilterValue', () => {
