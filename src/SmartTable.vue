@@ -394,11 +394,13 @@ const hostWidth = ref(0)
 /**
  * 列宽之和小于容器时的富余宽度,交给一列占位列独自吃掉(见 withFillerColumn):
  * 表头底色、行底色、边框都铺到容器右缘,每一列仍是拖出来的精确宽度。
- * 只取决于 scrollX 与容器宽度,不含 dragDelta —— 拖拽期间列数组因此保持不变,
- * 不会每帧重建列定义让整张表重新求解布局。
+ * 含 dragDelta:拖拽期间正在拖的列由 Naive 实时渲染出新宽度,若占位列宽度不
+ * 跟着让出这部分增量,表格总宽(colsWidth)会在松手前偏离容器宽度,右侧短暂
+ * 露出留白(或反向撑出横向滚动条)——这正是本次 PR 要修的那个 bug,拖拽中也
+ * 不能再犯。富余耗尽(含正在拖拽的增量后)则钉到 0,退回横向滚动。
  */
 const fillerWidth = computed(() =>
-  colsPinned.value ? Math.max(0, hostWidth.value - columnsApi.scrollX.value) : 0,
+  colsPinned.value ? Math.max(0, hostWidth.value - columnsApi.scrollX.value - dragDelta.value) : 0,
 )
 
 /** 交给 Naive 的最终列:钉住且有富余时,在右固定列之前补一列占位。 */
@@ -594,6 +596,11 @@ defineExpose({
    富余宽度由占位列独自吃掉,表格照样填满容器,右侧不留白(见 withFillerColumn)。 */
 .smart-table--pinned-cols :deep(.n-data-table-table) {
   width: var(--smart-table-cols-width);
+}
+/* 占位列(withFillerColumn)不是真实数据列,只用来把富余宽度填满容器:
+   去掉指针交互提示,免得它看起来像还能点的一格。 */
+.smart-table :deep(.smart-table-filler-col) {
+  pointer-events: none;
 }
 /* 列宽拖拽手柄归位。Naive 默认把它放偏了:命中区 right 是 container-size/2,
    可见竖线在命中区内又 left 了 container-size/2,两次叠加 —— 那根线落在列边界左侧

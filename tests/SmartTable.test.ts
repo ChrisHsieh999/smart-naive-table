@@ -111,6 +111,33 @@ describe('SmartTable 列宽钉住后填满容器', () => {
     vi.unstubAllGlobals()
   })
 
+  it('已钉住的表格,拖拽进行中(松手之前)表格总宽也应等于容器宽度,不应中途露出留白', async () => {
+    const wrapper = mountWithHostWidth([
+      { key: 'name', title: 'Name', width: 200, resizable: true },
+      { key: 'op', title: 'Op', width: 200, fixed: 'right' },
+    ])
+    const dataTable = wrapper.findComponent(NDataTable)
+    const resize = dataTable.props('onUnstableColumnResize') as (...a: unknown[]) => void
+    const actualWidths: Record<string, number> = { name: 200, op: 200 }
+
+    // 先走一遍完整拖拽,让表格进入钉住态(name 120 + op 200 + 占位 580 = 900)
+    resize(120, 120, { key: 'name' }, (k: string) => actualWidths[k])
+    window.dispatchEvent(new MouseEvent('mouseup'))
+    emitResizeObserver()
+    await nextTick()
+    actualWidths.name = 120
+
+    // 再次拖拽 name 列,但还没有松手(onUnstableColumnResize 在鼠标移动时持续触发)
+    resize(200, 200, { key: 'name' }, (k: string) => actualWidths[k])
+    await nextTick()
+
+    // 拖拽中途,表格总宽仍应等于容器宽度:占位列要跟着 dragDelta 一起让出空间
+    expect(dataTable.props('scrollX')).toBe(HOST_WIDTH)
+
+    wrapper.unmount()
+    vi.unstubAllGlobals()
+  })
+
   it('没拖过列宽(未钉住)时不补占位列 —— 拉伸交给 Naive 自己的 width:100%', async () => {
     const wrapper = mountWithHostWidth([
       { key: 'name', title: 'Name', width: 200 },

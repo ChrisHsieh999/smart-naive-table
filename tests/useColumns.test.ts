@@ -343,13 +343,26 @@ describe('withFillerColumn:列宽钉住后用占位列填满容器', () => {
     expect(out.map((c) => ('key' in c ? c.key : ''))).toEqual(['name', 'amt', FILLER_COLUMN_KEY])
   })
 
-  it('占位列不可拖拽、不排序、不过滤 —— 只是一块填白', () => {
+  it('右固定列不是连续的尾部一段时,占位列仍要落在真正的尾部之前,不能卡在中间', () => {
+    // 中间混了一个 fixed:'right'(声明顺序或列设置拖拽出来的),op2 才是真正贴右缘的那一个
+    const withMidFixed: DataTableColumn<Row>[] = [
+      { key: 'name', title: 'N', width: 100 },
+      { key: 'amt', title: 'A', width: 100, fixed: 'right' },
+      { key: 'remark', title: 'R', width: 100 },
+      { key: 'op2', title: 'OP2', width: 100, fixed: 'right' },
+    ]
+    const out = withFillerColumn(withMidFixed, 260)
+    expect(out.map((c) => ('key' in c ? c.key : ''))).toEqual(['name', 'amt', 'remark', FILLER_COLUMN_KEY, 'op2'])
+  })
+
+  it('占位列不可拖拽、不排序、不过滤、不进 CSV 导出 —— 只是一块填白', () => {
     const filler = withFillerColumn(cols(), 260).find(
       (c) => 'key' in c && c.key === FILLER_COLUMN_KEY,
     ) as DataTableBaseColumn<Row>
     expect(filler.resizable).toBeUndefined()
     expect(filler.sorter).toBeUndefined()
     expect(filler.filter).toBeUndefined()
+    expect(filler.allowExport).toBe(false)
     expect(filler.title).toBe('')
   })
 })

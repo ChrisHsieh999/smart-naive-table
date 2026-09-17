@@ -572,7 +572,11 @@ export const FILLER_COLUMN_KEY = '__smart_filler'
  * 把富余宽度独自吃掉:表头底色、行底色、边框都铺到容器右缘,而每一列仍是拖出来的精确宽度。
  * 不补的话表格右侧就是一块空白,补进真实列则会把富余摊回各列,拖一列会牵动其它列。
  *
- * 插在右固定列之前 —— 右固定列(通常是操作列)要留在最右。width <= 0 时原样返回。
+ * 插在右固定列这一串的最前面 —— 找的是从数组末尾往前数、连续都是 fixed:'right' 的那一段
+ * 的起点,而不是第一个匹配项:右固定列理应声明在最后,但没有任何校验强制这一点,若中间也混了
+ * 一个 fixed:'right'(声明顺序或列设置里拖拽出来的),占位列仍要落在真正的尾部之前,不能卡在
+ * 表格中间把后续的非固定列隔断。`allowExport: false` 让它不进 downloadCsv 导出。
+ * width <= 0 时原样返回。
  */
 export function withFillerColumn<T>(columns: DataTableColumn<T>[], width: number): DataTableColumn<T>[] {
   if (!(width > 0)) return columns
@@ -581,9 +585,10 @@ export function withFillerColumn<T>(columns: DataTableColumn<T>[], width: number
     title: '',
     width,
     className: 'smart-table-filler-col',
+    allowExport: false,
     render: () => null,
   }
-  const rightFixedAt = columns.findIndex((c) => 'fixed' in c && c.fixed === 'right')
-  const at = rightFixedAt === -1 ? columns.length : rightFixedAt
-  return [...columns.slice(0, at), filler as DataTableColumn<T>, ...columns.slice(at)]
+  let at = columns.length
+  while (at > 0 && columns[at - 1].fixed === 'right') at--
+  return [...columns.slice(0, at), filler, ...columns.slice(at)]
 }
