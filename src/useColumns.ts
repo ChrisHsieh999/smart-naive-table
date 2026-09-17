@@ -563,3 +563,27 @@ export function useColumns<T>(opts: UseColumnsOpts<T>): UseColumnsReturn<T> {
     scrollX,
   }
 }
+
+/** 占位列的 key。它不进列设置、不排序、不过滤、不可拖拽,只负责把表格填满容器。 */
+export const FILLER_COLUMN_KEY = '__smart_filler'
+
+/**
+ * 列宽钉住(table-layout: fixed + 表格宽度 = 各列宽之和)后,列宽之和小于容器时补一列占位,
+ * 把富余宽度独自吃掉:表头底色、行底色、边框都铺到容器右缘,而每一列仍是拖出来的精确宽度。
+ * 不补的话表格右侧就是一块空白,补进真实列则会把富余摊回各列,拖一列会牵动其它列。
+ *
+ * 插在右固定列之前 —— 右固定列(通常是操作列)要留在最右。width <= 0 时原样返回。
+ */
+export function withFillerColumn<T>(columns: DataTableColumn<T>[], width: number): DataTableColumn<T>[] {
+  if (!(width > 0)) return columns
+  const filler: DataTableBaseColumn<T> = {
+    key: FILLER_COLUMN_KEY,
+    title: '',
+    width,
+    className: 'smart-table-filler-col',
+    render: () => null,
+  }
+  const rightFixedAt = columns.findIndex((c) => 'fixed' in c && c.fixed === 'right')
+  const at = rightFixedAt === -1 ? columns.length : rightFixedAt
+  return [...columns.slice(0, at), filler as DataTableColumn<T>, ...columns.slice(at)]
+}
